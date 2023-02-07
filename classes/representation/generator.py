@@ -1,13 +1,15 @@
 import numpy as np
+from datetime import time
 from datetime import date
 from datetime import timedelta
 
 from data.dataframe import df
 
 SCHEDULE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-GYM_DURATION = 180
-POSSIBLE_START = 900
-POSSIBLE_END = 2300
+GYM_DURATION = timedelta(3,0)
+POSSIBLE_START = time(9,0)
+POSSIBLE_END = time(23,0)
+TIMES = ['Start', 'Finish']
 
 
 class Generator:
@@ -15,7 +17,6 @@ class Generator:
         self.schedule = self.init_schedule()
         print(self.schedule)
         self.space = self.find_space()
-        print(self.space)
 
     """ INIT """
 
@@ -34,7 +35,7 @@ class Generator:
         # Set the amount of weeks, days and shifts to be scheduled
         weeks = scheduling_days // len(SCHEDULE_DAYS)
         days = len(SCHEDULE_DAYS)
-        occupation = 1
+        occupation = len(TIMES)
 
         # Create schedule
         schedule = np.empty((weeks, days, occupation), dtype=list)
@@ -42,8 +43,19 @@ class Generator:
         # Fill schedule with empty lists
         # So that more employees can work during the same shift
         for week_num, week in enumerate(schedule):
-            for day_num, day in enumerate(week):
-                    schedule[week_num][day_num] = df.iloc[day_num]['Schedule']
+            for day_num in range(len(week)):
+
+                    if df.iloc[day_num]['Start'] != None or df.iloc[day_num]['Finish'] != None:
+                        # Set time from df as strings
+                        start_time = df.iloc[day_num]['Start']
+                        finish_time = df.iloc[day_num]['Finish']
+
+                        # Save in schedule as time objects
+                        schedule[week_num][day_num][0] = self.convert_time(start_time)
+                        schedule[week_num][day_num][1] = self.convert_time(finish_time)
+                    else:
+                        schedule[week_num][day_num][0] = None
+                        schedule[week_num][day_num][1] = None
 
         return schedule
 
@@ -102,7 +114,7 @@ class Generator:
 
     """ METHODS """
 
-    def find_space(self) -> None:
+    def find_space(self) -> dict:
         """
         Method to find possible spaces
         """
@@ -114,22 +126,31 @@ class Generator:
                 space[week_num] = {}
 
             for day_num, day in enumerate(week):
-                space[week_num][day_num] = self.read_day(day[0])
+                if day_num not in space[week_num]:
+                    space[week_num][day_num] = {}
+
+                dictionary_entry = space[week_num][day_num]
+
+                dictionary_entry['Start'], dictionary_entry['Finish']= self.read_day(day)
 
         return space
 
-    def read_day(self, occupation):
+    def read_day(self, occupation:list) -> list:
 
         possible_time = []
+
         if occupation == None:
-            possible_time.append(f'{POSSIBLE_START}-{POSSIBLE_END}')
+            possible_time.append(f'{POSSIBLE_START + GYM_DURATION}-{POSSIBLE_END - GYM_DURATION}')
         else:
             start_time, finish_time = occupation.split('-')
 
             if int(start_time) > POSSIBLE_START + GYM_DURATION:
                 possible_time.append(f'{POSSIBLE_START + GYM_DURATION}-{start_time}')
 
-            if int(finish_time) < POSSIBLE_END - GYM_DURATION:
+            if int(finish_time) < POSSIBLE_END - GYM_DURATION and int(finish_time) > POSSIBLE_START:
                 possible_time.append(f'{finish_time}-{POSSIBLE_END - GYM_DURATION}')
 
         return possible_time
+
+    def convert_time(self, string:str) -> object:
+        return time(int(string[:-2]), int(string[-2:]))
